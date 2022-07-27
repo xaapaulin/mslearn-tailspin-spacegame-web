@@ -6,29 +6,59 @@
 trigger:
 - main
 
-pool:
-  name: Default
-
 variables:
-  solution: '**/*.sln'
-  buildPlatform: 'Any CPU'
   buildConfiguration: 'Release'
+stages:
+- stage: 'build'
+  displayName: 'Build the web application'
+  jobs: 
+  - job: 'Build'
+    displayName: 'Build Job'
+    pool:
+      name: Default
+    steps:
+    - script: dotnet build --configuration $(buildConfiguration)
+      displayName: 'dontnet build $(buildConfiguration)'
 
-steps:
-- task: NuGetToolInstaller@1
+    - script: 'echo "$(Build.DefinitionName), $(Build.BuildId), $(Build.BuildNumber)" > buildinfo.txt'
+      displayName: 'Write build info'
+    
+    - task: DotNetCoreCLI@2
+      displayName: 'Build the project - Release'
+      inputs:
+        command: 'build'
+        arguments: '--no-restore --configuration Release'
+        projects: '**/*.csproj'
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish the project - Release'
+      inputs:
+        command: 'publish'
+        projects: '**/*.csproj'
+        publishWebProjects: false
+        arguments: '--no-build --configuration Release --output $(Build.ArtifactStagingDirectory)/Release'
+        zipAfterPublish: true
 
-- task: NuGetCommand@2
-  inputs:
-    restoreSolution: '$(solution)'
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Artifact: drop'
+      condition: succeeded()
 
-- task: VSBuild@1
-  inputs:
-    solution: '$(solution)'
-    msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:DesktopBuildPackageLocation="$(build.artifactStagingDirectory)\WebApp.zip" /p:DeployIisAppPath="Default Web Site"'
-    platform: '$(buildPlatform)'
-    configuration: '$(buildConfiguration)'
-
-- task: VSTest@2
-  inputs:
-    platform: '$(buildPlatform)'
-    configuration: '$(buildConfiguration)'
+- stage: 'Deploy'
+  displayName: 'Deploy the web application'
+  dependsOn: Build
+  jobs:
+  - deployment: Deploy
+    environment: dev
+    variables:
+    - group: Release
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: drop
+          - task: AzureWebApp@1
+            displayName: 'Azure App Service Deploy: website'
+            inputs:
+              azureSubscription: 'Resource Manager - Tailspin - Space Game'
+              appName: '$(webAppName)'
+              package: '$(Pipeline.Workspace)/drop/$(buildConfiguration)/*.zip'
