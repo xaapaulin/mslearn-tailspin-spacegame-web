@@ -8,9 +8,6 @@ trigger:
 
 pool:
   name: Default
-  vmImage: 'ubuntu-20.04'
-  demands:
-  - npm
 
 variables:
   solution: '**/*.sln'
@@ -18,11 +15,14 @@ variables:
   buildConfiguration: 'Release'
 
 steps:
-  
-- task: Npm@1
-  displayName: 'Run npm install'
-  inputs:
-    verbose: true
-
 - script: dotnet build --configuration $(buildConfiguration)
   displayName: 'dontnet build $(buildConfiguration)'
+
+- script: 'echo "$(Build.DefinitionName), $(Build.BuildId), $(Build.BuildNumber)" > buildinfo.txt'
+  displayName: 'Write build info'
+- task: DotNetCoreCLI@2
+  displayName: 'Build the project - Release'
+  inputs:
+    command: 'build'
+    arguments: '--no-restore --configuration Release'
+    projects: '**/*.csproj'
