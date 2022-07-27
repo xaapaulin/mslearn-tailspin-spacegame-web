@@ -41,13 +41,12 @@ stages:
     - task: PublishBuildArtifacts@1
       displayName: 'Publish Artifact: drop'
       condition: succeeded()
-      
+
 - stage: 'Deploy'
   displayName: 'Deploy the web application'
   dependsOn: Build
   jobs:
   - deployment: Deploy
-    pool:
     environment: dev
     variables:
     - group: Release
