@@ -6,39 +6,42 @@
 trigger:
 - main
 
-pool:
-  name: Default
-
 variables:
-  solution: '**/*.sln'
-  buildPlatform: 'Any CPU'
   buildConfiguration: 'Release'
+stages:
+- stage: 'build'
+  displayName: 'Build the web application'
+  jobs: 
+  - job: 'Build'
+    displayName: 'Build Job'
+    pool:
+      name: Default
+    steps:
+    - script: dotnet build --configuration $(buildConfiguration)
+      displayName: 'dontnet build $(buildConfiguration)'
 
-steps:
-- script: dotnet build --configuration $(buildConfiguration)
-  displayName: 'dontnet build $(buildConfiguration)'
+    - script: 'echo "$(Build.DefinitionName), $(Build.BuildId), $(Build.BuildNumber)" > buildinfo.txt'
+      displayName: 'Write build info'
+    
+    - task: DotNetCoreCLI@2
+      displayName: 'Build the project - Release'
+      inputs:
+        command: 'build'
+        arguments: '--no-restore --configuration Release'
+        projects: '**/*.csproj'
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish the project - Release'
+      inputs:
+        command: 'publish'
+        projects: '**/*.csproj'
+        publishWebProjects: false
+        arguments: '--no-build --configuration Release --output $(Build.ArtifactStagingDirectory)/Release'
+        zipAfterPublish: true
 
-- script: 'echo "$(Build.DefinitionName), $(Build.BuildId), $(Build.BuildNumber)" > buildinfo.txt'
-  displayName: 'Write build info'
-- task: DotNetCoreCLI@2
-  displayName: 'Build the project - Release'
-  inputs:
-    command: 'build'
-    arguments: '--no-restore --configuration Release'
-    projects: '**/*.csproj'
-- task: DotNetCoreCLI@2
-  displayName: 'Publish the project - Release'
-  inputs:
-    command: 'publish'
-    projects: '**/*.csproj'
-    publishWebProjects: false
-    arguments: '--no-build --configuration Release --output $(Build.ArtifactStagingDirectory)/Release'
-    zipAfterPublish: true
-
-- task: PublishBuildArtifacts@1
-  displayName: 'Publish Artifact: drop'
-  condition: succeeded()
-
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Artifact: drop'
+      condition: succeeded()
+      
 - stage: 'Deploy'
   displayName: 'Deploy the web application'
   dependsOn: Build
